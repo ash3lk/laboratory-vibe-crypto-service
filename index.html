@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>crypto-collector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #07080A;
+    --surface:   #0D0F14;
+    --surface2:  #13161D;
+    --border:    rgba(255,255,255,0.06);
+    --border2:   rgba(255,255,255,0.12);
+    --green:     #3DFFA0;
+    --green-dim: #1A5C3A;
+    --blue:      #4A9EFF;
+    --red:       #FF4A6E;
+    --amber:     #FFB547;
+    --text:      #E8ECF4;
+    --muted:     #4A5168;
+    --muted2:    #2C3245;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Syne', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* scanlines */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+
+  /* ── Layout ─────────────────────────────────── */
+  .app { max-width: 1280px; margin: 0 auto; padding: 20px 20px 48px; display: grid; gap: 14px; }
+
+  /* ── Header ─────────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 18px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .logo-mark {
+    width: 30px; height: 30px; border-radius: 7px; background: var(--green);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .logo-mark svg { width: 16px; height: 16px; }
+  .logo-text { font-family: var(--sans); font-size: 17px; font-weight: 800; letter-spacing: -0.5px; color: #fff; }
+  .logo-text span { color: var(--green); }
+  .hdr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: blink 2s ease-in-out infinite; }
+  @keyframes blink {
+    0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(61,255,160,.4); }
+    50%      { opacity:.7; box-shadow:0 0 0 5px rgba(61,255,160,0); }
+  }
+  .hdr-status { font-size: 11px; font-weight: 600; color: var(--green); text-transform: uppercase; letter-spacing: .05em; }
+  .spacer { flex: 1; }
+  .hdr-controls { display: flex; align-items: center; gap: 10px; }
+  .ctrl-grp { display: flex; flex-direction: column; gap: 2px; }
+  .ctrl-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  select, button { font-family: var(--mono); font-size: 12px; cursor: pointer; }
+  .ctrl-sel {
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px;
+    color: var(--text); padding: 5px 9px; outline: none; appearance: none;
+  }
+  .ctrl-sel:focus { border-color: var(--green); }
+  .btn-primary {
+    background: var(--green); color: #000; border: none; border-radius: 6px;
+    padding: 8px 14px; font-weight: 700; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .06em;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn-primary:hover { opacity: .85; }
+  .btn-primary:active { transform: scale(.97); }
+  .btn-primary:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+  .uptime-chip { font-size: 11px; color: var(--muted); padding: 6px 10px; background: var(--surface2); border-radius: 6px; border: 1px solid var(--border); }
+  .err-banner { display: none; background: rgba(255,74,110,.1); border: 1px solid rgba(255,74,110,.25); border-radius: 6px; padding: 8px 14px; font-size: 12px; color: var(--red); }
+
+  /* ── Ticker ──────────────────────────────────── */
+  .ticker-bar {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 18px;
+  }
+  .ticker-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; min-width: 90px; }
+  .ticker-track { flex: 1; height: 3px; background: var(--muted2); border-radius: 2px; overflow: hidden; }
+  .ticker-fill {
+    height: 100%; background: linear-gradient(90deg, var(--green-dim), var(--green));
+    border-radius: 2px; transition: width 1s linear; position: relative;
+  }
+  .ticker-fill::after {
+    content: ''; position: absolute; right: -1px; top: -2px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 8px var(--green);
+  }
+  .ticker-cd { font-size: 22px; font-weight: 700; color: #fff; min-width: 52px; text-align: right; letter-spacing: -.5px; }
+  .ticker-cd-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+  /* ── Stat row ────────────────────────────────── */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .stat-val { font-family: var(--sans); font-size: 26px; font-weight: 700; color: #fff; letter-spacing: -.5px; }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .stat-val.ok   { color: var(--green); }
+  .stat-val.err  { color: var(--red); }
+
+  /* ── Coin grid ───────────────────────────────── */
+  .coins-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .coin-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; position: relative; overflow: hidden; transition: border-color .3s;
+  }
+  .coin-card:hover { border-color: var(--border2); }
+  .coin-card::after {
+    content: ''; position: absolute; inset: 0; border-radius: 12px;
+    opacity: 0; transition: opacity .6s; pointer-events: none;
+  }
+  .coin-card.flash-up::after   { background: radial-gradient(ellipse at top right, rgba(61,255,160,.09), transparent 60%); opacity: 1; }
+  .coin-card.flash-down::after { background: radial-gradient(ellipse at top right, rgba(255,74,110,.09), transparent 60%); opacity: 1; }
+
+  .coin-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .coin-icon {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; flex-shrink: 0;
+  }
+  .coin-name-wrap .coin-name   { font-family: var(--sans); font-size: 14px; font-weight: 700; color: #fff; }
+  .coin-name-wrap .coin-ticker { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .coin-src { margin-left: auto; font-size: 10px; color: var(--muted); background: var(--surface2); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border); text-transform: uppercase; }
+
+  .coin-price { font-family: var(--sans); font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -1px; line-height: 1; margin-bottom: 6px; }
+  .coin-price.flash-up   { animation: fUp .6s; }
+  .coin-price.flash-down { animation: fDn .6s; }
+  @keyframes fUp { 0%,100%{color:#fff} 40%{color:var(--green)} }
+  @keyframes fDn { 0%,100%{color:#fff} 40%{color:var(--red)}   }
+
+  .coin-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .chg-badge { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+  .chg-badge.pos { background: rgba(61,255,160,.12); color: var(--green); }
+  .chg-badge.neg { background: rgba(255,74,110,.12); color: var(--red); }
+  .chg-badge.neu { background: var(--surface2); color: var(--muted); }
+  .coin-updated { font-size: 10px; color: var(--muted); }
+
+  .spark-wrap { height: 52px; }
+  .spark-wrap canvas { width: 100%; height: 100%; display: block; }
+
+  /* ── Bottom ──────────────────────────────────── */
+  .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .panel-hdr { padding: 11px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .panel-method { font-size: 9px; font-weight: 700; letter-spacing: .06em; padding: 2px 6px; border-radius: 3px; background: rgba(61,255,160,.12); color: var(--green); }
+  .panel-route { font-size: 12px; color: var(--muted); }
+  .panel-route b { color: var(--text); font-weight: 400; }
+  .panel-badge { margin-left: auto; font-size: 11px; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 4px; }
+  .panel-body { flex: 1; overflow-y: auto; max-height: 300px; }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 2px; }
+
+  /* Prices table */
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; padding: 8px 14px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+  tbody td { padding: 9px 14px; font-size: 12px; border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface2); }
+  .sym-pill { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .src-tag  { font-size: 10px; color: var(--muted); background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+  .price-num { font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; }
+  .ts-cell   { font-size: 10px; color: var(--muted); }
+
+  /* Log */
+  .log-stream { padding: 10px 0; }
+  .log-line   { padding: 2px 14px; font-size: 11px; line-height: 1.9; display: flex; gap: 10px; }
+  .log-line:hover { background: var(--surface2); }
+  .log-ts  { color: var(--muted); flex-shrink: 0; font-size: 10px; }
+  .log-tag { flex-shrink: 0; font-size: 10px; font-weight: 600; }
+  .log-tag.collector { color: var(--blue); }
+  .log-tag.api       { color: var(--amber); }
+  .log-tag.err       { color: var(--red); }
+  .log-tag.main      { color: var(--muted); }
+  .log-msg { color: var(--text); }
+  .hl-g { color: var(--green); }
+  .hl-r { color: var(--red); }
+  .hl-p { color: #fff; font-weight: 600; }
+
+  /* ENV footer */
+  .env-footer { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; display: flex; gap: 22px; flex-wrap: wrap; }
+  .env-kv { display: flex; gap: 8px; font-size: 11px; }
+  .env-k { color: var(--muted); }
+  .env-v { color: var(--green); }
+
+  .empty { padding: 36px; text-align: center; color: var(--muted); font-size: 12px; }
+
+  @media(max-width: 720px) {
+    .stat-row { grid-template-columns: 1fr 1fr; }
+    .bottom-grid { grid-template-columns: 1fr; }
+    .coins-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 16 16" fill="none">
+        <polyline points="1,13 4,8 7,10 11,3 15,6" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">crypto<span>-collector</span></div>
+    </div>
+    <div class="hdr-dot" id="hdr-dot"></div>
+    <div class="hdr-status" id="hdr-status">connecting...</div>
+    <div class="spacer"></div>
+    <div class="hdr-controls">
+      <div class="ctrl-grp">
+        <div class="ctrl-lbl">Refresh</div>
+        <select class="ctrl-sel" id="refresh-sel">
+          <option value="10">10s</option>
+          <option value="30" selected>30s</option>
+          <option value="60">60s</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="btn-collect">▶ collect now</button>
+      <div class="uptime-chip" id="uptime-chip">00:00</div>
+    </div>
+  </header>
+
+  <div class="err-banner" id="err-banner"></div>
+
+  <!-- TICKER -->
+  <div class="ticker-bar">
+    <div class="ticker-label">next refresh</div>
+    <div class="ticker-track"><div class="ticker-fill" id="ticker-fill" style="width:0%"></div></div>
+    <div>
+      <div class="ticker-cd" id="ticker-cd">—</div>
+      <div class="ticker-cd-lbl">seconds</div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-lbl">Coins tracked</div>
+      <div class="stat-val" id="stat-coins">—</div>
+      <div class="stat-sub">active symbols</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Records in DB</div>
+      <div class="stat-val" id="stat-rows">—</div>
+      <div class="stat-sub">prices table</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">DB ping</div>
+      <div class="stat-val ok" id="stat-ping">—</div>
+      <div class="stat-sub">GET /status</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Uptime</div>
+      <div class="stat-val" id="stat-uptime">—</div>
+      <div class="stat-sub">server uptime</div>
+    </div>
+  </div>
+
+  <!-- COINS GRID (dynamic) -->
+  <div class="coins-grid" id="coins-grid">
+    <div class="empty">Loading prices…</div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div class="bottom-grid">
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-method">GET</span>
+        <span class="panel-route">/prices<b>?limit=50</b></span>
+        <span class="panel-badge" id="tbl-badge">0 rows</span>
+      </div>
+      <div class="panel-body" id="tbl-body">
+        <div class="empty">Waiting for data…</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-method">LOG</span>
+        <span class="panel-route">client activity</span>
+      </div>
+      <div class="panel-body"><div class="log-stream" id="log-stream"></div></div>
+    </div>
+  </div>
+
+  <!-- ENV footer -->
+  <div class="env-footer" id="env-footer">
+    <div class="env-kv"><span class="env-k">API</span><span class="env-v" id="env-api">same origin</span></div>
+    <div class="env-kv"><span class="env-k">HTTP_PORT</span><span class="env-v" id="env-port">—</span></div>
+    <div class="env-kv"><span class="env-k">COINS</span><span class="env-v" id="env-coins">—</span></div>
+    <div class="env-kv"><span class="env-k">version</span><span class="env-v" id="env-ver">—</span></div>
+  </div>
+
+</div>
+<script>
+// ── Coin appearance map (client-side only) ─────────────────────────────────
+const COIN_META = {
+  BTC:  { name:'Bitcoin',   icon:'₿',  bg:'rgba(247,147,26,.15)',  fg:'#F7931A' },
+  ETH:  { name:'Ethereum',  icon:'Ξ',  bg:'rgba(98,126,234,.15)',  fg:'#627EEA' },
+  SOL:  { name:'Solana',    icon:'◎',  bg:'rgba(153,69,255,.15)',  fg:'#9945FF' },
+  BNB:  { name:'BNB',       icon:'B',  bg:'rgba(240,185,11,.15)',  fg:'#F0B90B' },
+  XRP:  { name:'XRP',       icon:'✕',  bg:'rgba(0,170,228,.15)',   fg:'#00AAE4' },
+  ADA:  { name:'Cardano',   icon:'A',  bg:'rgba(0,51,173,.2)',     fg:'#3468D1' },
+  DOGE: { name:'Dogecoin',  icon:'Ð',  bg:'rgba(186,177,80,.15)',  fg:'#C2A633' },
+  AVAX: { name:'Avalanche', icon:'▲',  bg:'rgba(232,65,66,.15)',   fg:'#E84142' },
+  DOT:  { name:'Polkadot',  icon:'●',  bg:'rgba(230,0,122,.15)',   fg:'#E6007A' },
+  LINK: { name:'Chainlink', icon:'⬡',  bg:'rgba(55,91,210,.15)',   fg:'#375BD2' },
+  MATIC:{ name:'Polygon',   icon:'⬟',  bg:'rgba(130,71,229,.15)',  fg:'#8247E5' },
+  UNI:  { name:'Uniswap',   icon:'🦄', bg:'rgba(255,0,122,.15)',   fg:'#FF007A' },
+  ATOM: { name:'Cosmos',    icon:'⚛',  bg:'rgba(110,56,184,.15)',  fg:'#6E38B8' },
+  LTC:  { name:'Litecoin',  icon:'Ł',  bg:'rgba(191,191,191,.15)', fg:'#BFBFBF' },
+  TRX:  { name:'TRON',      icon:'T',  bg:'rgba(255,6,10,.15)',    fg:'#FF060A' },
+};
+
+function coinMeta(sym) {
+  return COIN_META[sym] || { name: sym, icon: sym[0], bg: 'rgba(255,255,255,.08)', fg: '#aaa' };
+}
+
+// ── State ──────────────────────────────────────────────────────────────────
+const S = {
+  prices:     [],           // raw rows from /prices
+  latest:     {},           // sym → latest price row
+  prev:       {},           // sym → previous price value
+  history:    {},           // sym → [price, price, ...] (up to 40)
+  refreshSec: 30,
+  nextAt:     Date.now() + 30000,
+  pageStart:  Date.now(),
+};
+
+// ── Log ────────────────────────────────────────────────────────────────────
+function log(tag, msg) {
+  const stream = document.getElementById('log-stream');
+  const ts = new Date().toTimeString().slice(0, 8);
+  const el = document.createElement('div');
+  el.className = 'log-line';
+  el.innerHTML = `<span class="log-ts">${ts}</span><span class="log-tag ${tag}">[${tag}]</span><span class="log-msg">${msg}</span>`;
+  stream.appendChild(el);
+  stream.parentElement.scrollTop = stream.parentElement.scrollHeight;
+  while (stream.children.length > 300) stream.removeChild(stream.firstChild);
+}
+
+function setErr(msg) {
+  const b = document.getElementById('err-banner');
+  if (msg) { b.textContent = msg; b.style.display = 'block'; }
+  else      { b.style.display = 'none'; }
+}
+
+// ── API calls ──────────────────────────────────────────────────────────────
+async function fetchPrices() {
+  const res = await fetch('/prices?limit=200');
+  if (!res.ok) throw new Error(`/prices HTTP ${res.status}`);
+  return res.json();
+}
+
+async function fetchStatus() {
+  const res = await fetch('/status');
+  if (!res.ok) throw new Error(`/status HTTP ${res.status}`);
+  return res.json();
+}
+
+async function triggerCollect() {
+  const res = await fetch('/collect', { method: 'POST' });
+  if (!res.ok) throw new Error(`/collect HTTP ${res.status}`);
+  return res.json();
+}
+
+// ── Sparkline ──────────────────────────────────────────────────────────────
+function drawSpark(canvasId, data, fg) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || data.length < 2) return;
+  const dpr = window.devicePixelRatio || 1;
+  const r = canvas.getBoundingClientRect();
+  canvas.width  = r.width  * dpr;
+  canvas.height = r.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = r.width, H = r.height, pad = 4;
+  const lo = Math.min(...data), hi = Math.max(...data), rng = hi - lo || 1;
+  const pts = data.map((v, i) => ({
+    x: pad + (i / (data.length - 1)) * (W - 2 * pad),
+    y: H - pad - ((v - lo) / rng) * (H - 2 * pad),
+  }));
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, fg + '28'); grad.addColorStop(1, fg + '00');
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, H);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length-1].x, H);
+  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.strokeStyle = fg; ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.stroke();
+  const lp = pts[pts.length-1];
+  ctx.beginPath(); ctx.arc(lp.x, lp.y, 3, 0, Math.PI*2);
+  ctx.fillStyle = fg; ctx.fill();
+  ctx.beginPath(); ctx.arc(lp.x, lp.y, 6, 0, Math.PI*2);
+  ctx.fillStyle = fg + '30'; ctx.fill();
+}
+
+// ── Format helpers ─────────────────────────────────────────────────────────
+function fmtUSD(n) {
+  if (n >= 1000) return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (n >= 1)    return '$' + n.toFixed(4);
+  return '$' + n.toFixed(6);
+}
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString('en-GB');
+}
+function fmtUptime(s) {
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${ss}s`;
+  return `${ss}s`;
+}
+
+// ── Render coin cards ──────────────────────────────────────────────────────
+function renderCoins() {
+  const grid = document.getElementById('coins-grid');
+  const syms = Object.keys(S.latest).sort();
+  if (!syms.length) { grid.innerHTML = '<div class="empty">No data yet — waiting for first collection.</div>'; return; }
+
+  // Create cards that don't exist yet
+  syms.forEach(sym => {
+    if (!document.getElementById(`card-${sym}`)) {
+      const m = coinMeta(sym);
+      const card = document.createElement('div');
+      card.className = 'coin-card';
+      card.id = `card-${sym}`;
+      card.innerHTML = `
+        <div class="coin-hdr">
+          <div class="coin-icon" style="background:${m.bg};color:${m.fg}">${m.icon}</div>
+          <div class="coin-name-wrap">
+            <div class="coin-name">${m.name}</div>
+            <div class="coin-ticker">${sym} · USD</div>
+          </div>
+          <div class="coin-src" id="src-${sym}">—</div>
+        </div>
+        <div class="coin-price" id="price-${sym}">—</div>
+        <div class="coin-meta">
+          <div class="chg-badge neu" id="chg-${sym}">—</div>
+          <div class="coin-updated" id="upd-${sym}">—</div>
+        </div>
+        <div class="spark-wrap"><canvas id="spark-${sym}"></canvas></div>
+      `;
+      grid.appendChild(card);
+    }
+  });
+
+  // Update values
+  syms.forEach(sym => {
+    const row = S.latest[sym];
+    const price = row.price_usd;
+    const prev  = S.prev[sym];
+    const m     = coinMeta(sym);
+
+    document.getElementById(`price-${sym}`).textContent = fmtUSD(price);
+    document.getElementById(`src-${sym}`).textContent   = row.source;
+    document.getElementById(`upd-${sym}`).textContent   = 'at ' + fmtTime(row.created_at);
+
+    const chgEl  = document.getElementById(`chg-${sym}`);
+    const priceEl = document.getElementById(`price-${sym}`);
+    const cardEl  = document.getElementById(`card-${sym}`);
+
+    if (prev !== undefined && prev !== null) {
+      const pct = ((price - prev) / prev) * 100;
+      const sign = pct >= 0 ? '+' : '';
+      chgEl.textContent = `${sign}${pct.toFixed(3)}%`;
+      chgEl.className = 'chg-badge ' + (pct > 0.0001 ? 'pos' : pct < -0.0001 ? 'neg' : 'neu');
+
+      if (Math.abs(pct) > 0.0001) {
+        priceEl.classList.remove('flash-up','flash-down');
+        void priceEl.offsetWidth;
+        priceEl.classList.add(pct > 0 ? 'flash-up' : 'flash-down');
+        cardEl.classList.remove('flash-up','flash-down');
+        void cardEl.offsetWidth;
+        cardEl.classList.add(pct > 0 ? 'flash-up' : 'flash-down');
+        setTimeout(() => cardEl.classList.remove('flash-up','flash-down'), 1500);
+      }
+    } else {
+      chgEl.textContent = 'new'; chgEl.className = 'chg-badge neu';
+    }
+
+    drawSpark(`spark-${sym}`, S.history[sym] || [], m.fg);
+  });
+}
+
+// ── Render prices table ────────────────────────────────────────────────────
+function renderTable(rows) {
+  const tbody = document.getElementById('tbl-body');
+  document.getElementById('tbl-badge').textContent = `${rows.length} rows`;
+  if (!rows.length) { tbody.innerHTML = '<div class="empty">No rows yet.</div>'; return; }
+
+  const pillStyle = sym => {
+    const m = coinMeta(sym);
+    return `style="background:${m.bg};color:${m.fg}"`;
+  };
+
+  tbody.innerHTML = `
+    <table>
+      <thead><tr><th>#</th><th>symbol</th><th>price_usd</th><th>source</th><th>created_at</th></tr></thead>
+      <tbody>
+        ${rows.slice(0,50).map(r => `
+          <tr>
+            <td style="color:var(--muted)">${r.id}</td>
+            <td><span class="sym-pill" ${pillStyle(r.symbol)}>${r.symbol}</span></td>
+            <td class="price-num">${fmtUSD(r.price_usd)}</td>
+            <td><span class="src-tag">${r.source}</span></td>
+            <td class="ts-cell">${fmtTime(r.created_at)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ── Main refresh ───────────────────────────────────────────────────────────
+async function refresh() {
+  try {
+    const [priceData, statusData] = await Promise.all([fetchPrices(), fetchStatus()]);
+
+    // Update status bar
+    const pingEl = document.getElementById('stat-ping');
+    pingEl.textContent = statusData.db_ping;
+    pingEl.className   = 'stat-val ' + (statusData.db_ping === 'ok' ? 'ok' : 'err');
+    document.getElementById('stat-uptime').textContent = statusData.uptime;
+    document.getElementById('env-ver').textContent     = statusData.version;
+
+    // Process prices
+    const rows = priceData.prices || [];
+    document.getElementById('stat-rows').textContent = priceData.count ?? rows.length;
+
+    // Save prev prices before updating latest
+    Object.entries(S.latest).forEach(([sym, row]) => { S.prev[sym] = row.price_usd; });
+
+    // Rebuild latest map (rows are newest-first from backend)
+    S.latest = {};
+    rows.forEach(r => {
+      if (!S.latest[r.symbol]) S.latest[r.symbol] = r;
+    });
+
+    // Update history (append newest prices)
+    Object.entries(S.latest).forEach(([sym, row]) => {
+      if (!S.history[sym]) S.history[sym] = [];
+      // Only push if this is a new data point
+      const hist = S.history[sym];
+      if (!hist.length || hist[hist.length-1] !== row.price_usd) {
+        hist.push(row.price_usd);
+        if (hist.length > 40) hist.shift();
+      }
+    });
+
+    const syms = Object.keys(S.latest);
+    document.getElementById('stat-coins').textContent = syms.length;
+    document.getElementById('env-coins').textContent  = syms.join(', ');
+    document.getElementById('env-port').textContent   = location.port || '80';
+    document.getElementById('env-api').textContent    = location.origin;
+
+    renderCoins();
+    renderTable(rows);
+
+    // Update header status
+    document.getElementById('hdr-status').textContent = 'live';
+    document.getElementById('hdr-dot').style.background = 'var(--green)';
+    setErr(null);
+    log('api', `fetched <span class="hl-g">${rows.length}</span> rows · ${syms.length} coins`);
+
+  } catch (e) {
+    document.getElementById('hdr-status').textContent = 'error';
+    document.getElementById('hdr-dot').style.background = 'var(--red)';
+    setErr('Backend unreachable: ' + e.message);
+    log('err', `<span class="hl-r">${e.message}</span>`);
+  }
+}
+
+// ── Ticker ─────────────────────────────────────────────────────────────────
+function tick() {
+  const now = Date.now();
+  const rem = Math.max(0, S.nextAt - now);
+  const pct = ((S.refreshSec * 1000 - rem) / (S.refreshSec * 1000)) * 100;
+  document.getElementById('ticker-fill').style.width = Math.min(100, pct) + '%';
+  document.getElementById('ticker-cd').textContent   = Math.ceil(rem / 1000) + 's';
+
+  // Uptime chip counts from page load
+  const up = Math.floor((now - S.pageStart) / 1000);
+  document.getElementById('uptime-chip').textContent = fmtUptime(up);
+
+  if (rem <= 0) {
+    S.nextAt = now + S.refreshSec * 1000;
+    refresh();
+  }
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+document.getElementById('refresh-sel').addEventListener('change', e => {
+  S.refreshSec = parseInt(e.target.value);
+  S.nextAt = Date.now() + S.refreshSec * 1000;
+  log('main', `refresh interval → <span class="hl-g">${S.refreshSec}s</span>`);
+});
+
+document.getElementById('btn-collect').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-collect');
+  btn.disabled = true;
+  log('collector', 'triggering manual collection via <span class="hl-g">POST /collect</span>');
+  try {
+    const res = await triggerCollect();
+    log('collector', `<span class="hl-g">collection triggered</span> — ${res.message || 'ok'}`);
+    // Give the worker a moment then refresh
+    await new Promise(r => setTimeout(r, 1200));
+    S.nextAt = Date.now() + S.refreshSec * 1000;
+    await refresh();
+  } catch(e) {
+    log('err', `<span class="hl-r">collect failed: ${e.message}</span>`);
+  }
+  btn.disabled = false;
+});
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+log('main', 'crypto-collector dashboard loaded');
+log('api',  `origin: <span class="hl-g">${location.origin}</span>`);
+refresh();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
