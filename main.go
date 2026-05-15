@@ -14,15 +14,15 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/joho/godotenv/autoload"
 
-	"github.com/yourorg/crypto-collector/internal/collector"
-	"github.com/yourorg/crypto-collector/internal/config"
-	"github.com/yourorg/crypto-collector/internal/db"
-	"github.com/yourorg/crypto-collector/internal/handler"
+	"example.com/crypto-collector/internal/collector"
+	"example.com/crypto-collector/internal/config"
+	"example.com/crypto-collector/internal/db"
+	"example.com/crypto-collector/internal/handler"
 )
 
 // webFS bundles the frontend into the binary at compile time.
 //
-//go:embed web
+//go:embed web/*
 var webFS embed.FS
 
 func main() {
