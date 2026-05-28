@@ -56,11 +56,9 @@ jobs:
           script: |
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
-
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-
-            DB_PASSWORD=$(aws ssm get-parameter --name "/dev/rds/db_password" --with-decryption --query "Parameter.Value" --output text --region ${{ secrets.AWS_REGION }})
-
+            echo "DB_PASSWORD=$(aws ssm get-parameter --name "/dev/rds/db_password" --with-decryption --query "Parameter.Value" --output text --region ${{ secrets.AWS_REGION }})" > .env
+            
             cat <<'EOF' > docker-compose.yml
             version: '3.8'
             services:
@@ -72,7 +70,7 @@ jobs:
                 restart: always
                 environment:
                   - HTTP_PORT=8080
-                  - DB_URL=postgres://dbadmin:$DB_PASSWORD@dev-postgres-db.c9skkgw8a5b6.eu-north-1.rds.amazonaws.com/infra_laboratory_db?sslmode=require
+                  - DB_URL=postgres://dbadmin:${DB_PASSWORD}@dev-postgres-db.c9skkgw8a5b6.eu-north-1.rds.amazonaws.com/infra_laboratory_db?sslmode=require
             EOF
             
             docker-compose pull
