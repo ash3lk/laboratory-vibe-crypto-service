@@ -67,7 +67,7 @@ jobs:
                 container_name: backend
                 ports:
                   - "80:8080"
-                restart: always
+                restart: unless-stopped
                 environment:
                   - HTTP_PORT=8080
                   - DB_URL=postgres://dbadmin:${DB_PASSWORD}@dev-postgres-db.c9skkgw8a5b6.eu-north-1.rds.amazonaws.com/infra_laboratory_db?sslmode=require
